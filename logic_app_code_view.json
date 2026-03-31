@@ -1,0 +1,789 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "When_a_blob_is_added_or_modified_(properties_only)_(V2)": {
+                "recurrence": {
+                    "interval": 3,
+                    "frequency": "Minute"
+                },
+                "evaluatedRecurrence": {
+                    "interval": 3,
+                    "frequency": "Minute"
+                },
+                "splitOn": "@triggerBody()",
+                "metadata": {
+                    "JTJmcmF3": "/raw"
+                },
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/triggers/batch/onupdatedfile",
+                    "queries": {
+                        "folderId": "JTJmcmF3",
+                        "checkBothCreatedAndModifiedDateTime": false
+                    }
+                }
+            }
+        },
+        "actions": {
+            "Lists_blobs_(V2)": {
+                "runAfter": {
+                    "Initialize_variables_(valid_and_invalid_data_and_metrics)": [
+                        "Succeeded"
+                    ]
+                },
+                "metadata": {
+                    "JTJmcmF3": "/raw"
+                },
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob-1']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/foldersV2/@{encodeURIComponent(encodeURIComponent('JTJmcmF3'))}",
+                    "queries": {
+                        "nextPageMarker": "",
+                        "useFlatListing": true
+                    }
+                }
+            },
+            "loop_for_json": {
+                "foreach": "@body('Lists_blobs_(V2)')?['value']",
+                "actions": {
+                    "Get_blob_content_(V2)": {
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                }
+                            },
+                            "method": "get",
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(items('loop_for_json')?['Path']))}/content"
+                        }
+                    },
+                    "newLine": {
+                        "runAfter": {
+                            "Get_blob_content_(V2)": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "\n"
+                    },
+                    "splitByLines": {
+                        "runAfter": {
+                            "newLine": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@split(body('Get_blob_content_(V2)'), outputs('newLine'))"
+                    },
+                    "fieldNames": {
+                        "runAfter": {
+                            "splitByLines": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@split(first(outputs('splitByLines')), ',')"
+                    },
+                    "Select": {
+                        "runAfter": {
+                            "fieldNames": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Select",
+                        "inputs": {
+                            "from": "@skip(outputs('splitByLines'), 1)",
+                            "select": {
+                                "@{outputs('fieldNames')[0]}": "@split(item(), ',')?[0]",
+                                "@{outputs('fieldNames')[1]}": "@split(item(), ',')?[1]",
+                                "@{outputs('fieldNames')[2]}": "@split(item(), ',')?[2]",
+                                "@{outputs('fieldNames')[3]}": "@split(item(), ',')?[3]",
+                                "@{outputs('fieldNames')[4]}": "@split(item(), ',')?[4]",
+                                "@{outputs('fieldNames')[5]}": "@split(item(), ',')?[5]",
+                                "@{outputs('fieldNames')[6]}": "@split(item(), ',')?[6]",
+                                "@{outputs('fieldNames')[7]}": "@split(item(), ',')?[7]",
+                                "@{replace(coalesce(outputs('fieldNames')[8], ''), '\r', '')}": "@replace(coalesce(split(item(), ',')?[8], ''), '\r', '')"
+                            }
+                        }
+                    },
+                    "blankRow": {
+                        "runAfter": {
+                            "Select": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@take(body('Select'), sub(length(body('Select')), 1))"
+                    },
+                    "Parse_JSON": {
+                        "runAfter": {
+                            "blankRow": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@outputs('blankRow')",
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "incident_id": {
+                                            "type": "string"
+                                        },
+                                        "reported_date": {
+                                            "type": "string"
+                                        },
+                                        "suburb": {
+                                            "type": "string"
+                                        },
+                                        "category": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "priority": {
+                                            "type": "string"
+                                        },
+                                        "description": {
+                                            "type": "string"
+                                        },
+                                        "lat": {
+                                            "type": "string"
+                                        },
+                                        "lon": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "incident_id",
+                                        "reported_date",
+                                        "suburb",
+                                        "category",
+                                        "status",
+                                        "priority",
+                                        "description",
+                                        "lat",
+                                        "lon"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "validate": {
+                        "foreach": "@body('Parse_JSON')",
+                        "actions": {
+                            "Condition": {
+                                "actions": {
+                                    "Increment_total_incidents": {
+                                        "type": "IncrementVariable",
+                                        "inputs": {
+                                            "name": "totalIncidents",
+                                            "value": 1
+                                        }
+                                    },
+                                    "Increment_open_incidents": {
+                                        "runAfter": {
+                                            "Increment_total_incidents": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "IncrementVariable",
+                                        "inputs": {
+                                            "name": "openIncidents",
+                                            "value": "@if(equals(items('validate')?['status'], 'Open'),1,0)"
+                                        }
+                                    },
+                                    "Increment_resolved_incidents": {
+                                        "runAfter": {
+                                            "Increment_open_incidents": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "IncrementVariable",
+                                        "inputs": {
+                                            "name": "resolvedIncidents",
+                                            "value": "@if(equals(items('validate')?['status'], 'Resolved'),1,0)"
+                                        }
+                                    },
+                                    "Increment_in_progress_incidents": {
+                                        "runAfter": {
+                                            "Increment_resolved_incidents": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "IncrementVariable",
+                                        "inputs": {
+                                            "name": "inProgressIncidents",
+                                            "value": "@if(equals(items('validate')?['status'], 'In Progress'),1,0)"
+                                        }
+                                    },
+                                    "add_to_valid_data": {
+                                        "runAfter": {
+                                            "Increment_in_progress_incidents": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "AppendToArrayVariable",
+                                        "inputs": {
+                                            "name": "valid_data",
+                                            "value": "@items('validate')"
+                                        }
+                                    }
+                                },
+                                "else": {
+                                    "actions": {
+                                        "add_to_invalid_data": {
+                                            "type": "AppendToArrayVariable",
+                                            "inputs": {
+                                                "name": "invalid_data",
+                                                "value": "@items('validate')"
+                                            }
+                                        },
+                                        "string_json": {
+                                            "runAfter": {
+                                                "add_to_invalid_data": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "Compose",
+                                            "inputs": "@string(variables('invalid_data'))"
+                                        },
+                                        "move_to_invalid": {
+                                            "runAfter": {
+                                                "string_json": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ApiConnection",
+                                            "inputs": {
+                                                "host": {
+                                                    "connection": {
+                                                        "name": "@parameters('$connections')['azureblob-2']['connectionId']"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "body": "@outputs('string_json')",
+                                                "headers": {
+                                                    "ReadFileMetadataFromServer": true
+                                                },
+                                                "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+                                                "queries": {
+                                                    "folderPath": "/invalid",
+                                                    "name": "@concat(\n    replace(items('loop_for_json')?['DisplayName'], '.csv', ''),\n    '_invalid_',\n    utcNow('yyyy-MM-dd'),\n    '.json'\n)",
+                                                    "queryParametersSingleEncoded": true
+                                                }
+                                            },
+                                            "runtimeConfiguration": {
+                                                "contentTransfer": {
+                                                    "transferMode": "Chunked"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "expression": {
+                                    "and": [
+                                        {
+                                            "contains": [
+                                                "@item()['incident_id']",
+                                                "INC"
+                                            ]
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['reported_date']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "or": [
+                                                {
+                                                    "equals": [
+                                                        "@item()['status']",
+                                                        "Open"
+                                                    ]
+                                                },
+                                                {
+                                                    "equals": [
+                                                        "@item()['status']",
+                                                        "Resolved"
+                                                    ]
+                                                },
+                                                {
+                                                    "equals": [
+                                                        "@item()['status']",
+                                                        "In Progress"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['suburb']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['category']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['description']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "or": [
+                                                {
+                                                    "equals": [
+                                                        "@item()['priority']",
+                                                        "Low"
+                                                    ]
+                                                },
+                                                {
+                                                    "equals": [
+                                                        "@item()['priority']",
+                                                        "High"
+                                                    ]
+                                                },
+                                                {
+                                                    "equals": [
+                                                        "@item()['priority']",
+                                                        "Medium"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['lat']",
+                                                    ""
+                                                ]
+                                            }
+                                        },
+                                        {
+                                            "not": {
+                                                "equals": [
+                                                    "@item()['lon']",
+                                                    ""
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                },
+                                "type": "If"
+                            }
+                        },
+                        "runAfter": {
+                            "Parse_JSON": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Foreach"
+                    },
+                    "move_processed_file_to_archive": {
+                        "runAfter": {
+                            "move_to_curated": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azureblob-3']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": "@body('Get_blob_content_(V2)')",
+                            "headers": {
+                                "ReadFileMetadataFromServer": true
+                            },
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+                            "queries": {
+                                "folderPath": "/archive",
+                                "name": "@concat(item()?['DisplayName'], '_processed', utcNow('yyyyMMdd'))",
+                                "queryParametersSingleEncoded": true
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "Delete_processed_file_in_old_folder": {
+                        "runAfter": {
+                            "move_processed_file_to_archive": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azureblob-3']['connectionId']"
+                                }
+                            },
+                            "method": "delete",
+                            "headers": {
+                                "SkipDeleteIfFileNotFoundOnServer": false
+                            },
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent(item()?['Path']))}"
+                        }
+                    },
+                    "move_to_curated": {
+                        "runAfter": {
+                            "json_for_static_web": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azureblob-2']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": "@body('Get_blob_content_(V2)')",
+                            "headers": {
+                                "ReadFileMetadataFromServer": true
+                            },
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+                            "queries": {
+                                "folderPath": "/curated",
+                                "name": "@concat(\n    replace(items('loop_for_json')?['DisplayName'], '.csv', ''),\n    '_curated_',\n    utcNow('yyyy-MM-dd'),\n    '.json'\n)",
+                                "queryParametersSingleEncoded": true
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "json_for_static_web": {
+                        "runAfter": {
+                            "schema_created": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azureblob-4']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": "@outputs('schema_created')",
+                            "headers": {
+                                "ReadFileMetadataFromServer": true
+                            },
+                            "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files",
+                            "queries": {
+                                "folderPath": "/$web/data",
+                                "name": "summary.json",
+                                "queryParametersSingleEncoded": true
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "schema_created": {
+                        "runAfter": {
+                            "string_valid": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@json(concat(\n    '{',\n    '\"lastUpdated\":\"', utcNow(), '\",',\n    '\"metrics\":{',\n        '\"totalIncidents\":', string(variables('totalIncidents')), ',',\n        '\"openIncidents\":', string(variables('openIncidents')), ',',\n        '\"resolvedIncidents\":', string(variables('resolvedIncidents')), ',',\n        '\"inProgressIncidents\":', string(variables('inProgressIncidents')),\n    '},',\n    '\"byCategory\":', string(variables('byCategory')), ',',\n    '\"byPriority\":', string(variables('byPriority')), ',',\n    '\"recentRecords\":', string(variables('valid_data')),\n'}')\n)"
+                    },
+                    "string_valid": {
+                        "runAfter": {
+                            "For_each_priority": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@string(variables('valid_data'))"
+                    },
+                    "For_each_priority": {
+                        "foreach": "@outputs('Compose_priority')",
+                        "actions": {
+                            "Filter_array_priority": {
+                                "type": "Query",
+                                "inputs": {
+                                    "from": "@variables('valid_data')",
+                                    "where": "@equals(item()?['priority'], items('For_each_priority'))"
+                                }
+                            },
+                            "Append_to_array_variable_3": {
+                                "runAfter": {
+                                    "Filter_array_priority": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "AppendToArrayVariable",
+                                "inputs": {
+                                    "name": "byPriority",
+                                    "value": {
+                                        "category": "@items('For_each_priority')",
+                                        "count": "@length(body('Filter_array_priority'))"
+                                    }
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "For_each_category": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Foreach"
+                    },
+                    "For_each_category": {
+                        "foreach": "@outputs('Compose_category')",
+                        "actions": {
+                            "Filter_array_cat": {
+                                "type": "Query",
+                                "inputs": {
+                                    "from": "@variables('valid_data')",
+                                    "where": "@equals(item()?['category'], items('For_each_category'))"
+                                }
+                            },
+                            "Append_to_array_variable_2": {
+                                "runAfter": {
+                                    "Filter_array_cat": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "AppendToArrayVariable",
+                                "inputs": {
+                                    "name": "byCategory",
+                                    "value": {
+                                        "category": "@items('For_each_category')",
+                                        "count": "@length(body('Filter_array_cat'))"
+                                    }
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "Compose_priority": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Foreach"
+                    },
+                    "Compose_priority": {
+                        "runAfter": {
+                            "Select_prior": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@union(body('Select_prior'),body('Select_prior'))"
+                    },
+                    "Select_prior": {
+                        "runAfter": {
+                            "Compose_category": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Select",
+                        "inputs": {
+                            "from": "@variables('valid_data')",
+                            "select": "@item()?['priority']"
+                        }
+                    },
+                    "Compose_category": {
+                        "runAfter": {
+                            "Select_cat": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@union(body('Select_cat'),body('Select_cat'))\n"
+                    },
+                    "Select_cat": {
+                        "runAfter": {
+                            "validate": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Select",
+                        "inputs": {
+                            "from": "@variables('valid_data')",
+                            "select": "@item()?['category']"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Lists_blobs_(V2)": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "Initialize_variables_(valid_and_invalid_data_and_metrics)": {
+                "runAfter": {},
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "valid_data",
+                            "type": "array",
+                            "value": []
+                        },
+                        {
+                            "name": "invalid_data",
+                            "type": "array",
+                            "value": []
+                        },
+                        {
+                            "name": "totalIncidents",
+                            "type": "integer",
+                            "value": 0
+                        },
+                        {
+                            "name": "openIncidents",
+                            "type": "integer",
+                            "value": 0
+                        },
+                        {
+                            "name": "resolvedIncidents",
+                            "type": "integer",
+                            "value": 0
+                        },
+                        {
+                            "name": "inProgressIncidents",
+                            "type": "integer",
+                            "value": 0
+                        },
+                        {
+                            "name": "byCategory",
+                            "type": "array",
+                            "value": []
+                        },
+                        {
+                            "name": "byPriority",
+                            "type": "array",
+                            "value": []
+                        },
+                        {
+                            "name": "recentRecords",
+                            "type": "array",
+                            "value": []
+                        }
+                    ]
+                }
+            },
+            "Send_an_email_(V2)": {
+                "runAfter": {
+                    "loop_for_json": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": {
+                        "To": "vuthiyennhi2002@gmail.com",
+                        "Subject": "File processed successfully",
+                        "Body": "<p class=\"editor-paragraph\">File processed successfully with:</p><p class=\"editor-paragraph\">- Total incidents: @{variables('totalIncidents')}</p><p class=\"editor-paragraph\">- Open incidents: @{variables('openIncidents')}</p><p class=\"editor-paragraph\">- Resolved incidents: @{variables('resolvedIncidents')}</p><p class=\"editor-paragraph\">- In progress incidents: @{variables('inProgressIncidents')}</p><br><p class=\"editor-paragraph\">Valid records: @{length(variables('valid_data'))}</p><p class=\"editor-paragraph\">Invalid records: @{length(variables('invalid_data'))}</p><br><p class=\"editor-paragraph\">Processed at: @{utcNow()}</p>",
+                        "Importance": "Normal"
+                    },
+                    "path": "/v2/Mail"
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "azureblob": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/azureblob",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "azureblob-1": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/azureblob",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "azureblob-2": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/azureblob",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "azureblob-3": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/azureblob",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "azureblob-4": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/azureblob",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {}
+                },
+                "office365": {
+                    "id": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/providers/Microsoft.Web/locations/australiaeast/managedApis/office365",
+                    "connectionId": "/subscriptions/d0774270-55d1-464a-88f1-e6f1eb5b466e/resourceGroups/rg-council-dev-incidentsplatform/providers/Microsoft.Web/connections/office365",
+                    "connectionName": "office365",
+                    "connectionProperties": {}
+                }
+            }
+        }
+    }
+}
